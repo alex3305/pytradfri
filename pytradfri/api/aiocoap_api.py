@@ -71,7 +71,7 @@ class APIFactory:
         if self._protocol is None:
             self._protocol = asyncio.Task(Context.create_client_context(
                 loop=self._loop))
-        return (await self._protocol)
+        return await self._protocol
 
     async def _reset_protocol(self, exc=None):
         """Reset the protocol if an error occurs."""
@@ -85,7 +85,7 @@ class APIFactory:
         # Let any observers know the protocol has been shutdown.
         for path in self._observations.keys():
             ob = self._observations[path]
-            ob.error(None)
+            ob.cancel()
             del ob
 
     async def shutdown(self, exc=None):
@@ -141,6 +141,7 @@ class APIFactory:
 
         method = api_command.method
         path = api_command.path
+        str_path = ''.join(str(path))
         data = api_command.data
         parse_json = api_command.parse_json
         url = api_command.url(self._host)
@@ -172,7 +173,7 @@ class APIFactory:
 
         _, res = await self._get_response(msg)
 
-        self._observation_health_check(path)
+        await self._observation_health_check(str_path)
 
         api_command.result = _process_output(res, parse_json)
 
@@ -196,7 +197,7 @@ class APIFactory:
         """Observe an endpoint."""
         duration = api_command.observe_duration
         url = api_command.url(self._host)
-        path = api_command.path
+        path = ''.join(str(api_command.path))
 
         if path in self._observations:
             return self._observations[path]
@@ -220,7 +221,7 @@ class APIFactory:
         ob = pr.observation
         ob.register_callback(success_callback)
         ob.register_errback(error_callback)
-        ob.on_cancel(cancel_callback)
+        ob.register_errback(cancel_callback)
         self._observations[path] = ob
 
     async def generate_psk(self, security_key):
